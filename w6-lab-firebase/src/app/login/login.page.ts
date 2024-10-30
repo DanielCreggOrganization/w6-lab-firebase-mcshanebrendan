@@ -1,74 +1,104 @@
-import { Component } from '@angular/core';
+// src/app/login/login.page.ts
+import { Component, inject } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
+import { Router } from '@angular/router';
 import { AuthService } from '../auth.service';
-import { FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { AlertController } from '@ionic/angular';
+import { AlertController, LoadingController } from '@ionic/angular/standalone';
+import { IonicModule } from '@ionic/angular';
 
 @Component({
   selector: 'app-login',
   templateUrl: './login.page.html',
   styleUrls: ['./login.page.scss'],
+  standalone: true,
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    IonicModule
+  ],
 })
 export class LoginPage {
-  credentials: FormGroup;
 
-  constructor(
-    private fb: FormBuilder,
-    private authService: AuthService,
-    private alertController: AlertController
-  ) {
-    this.credentials = this.fb.group({
-      email: ['', [Validators.required, Validators.email]],
-      password: ['', [Validators.required, Validators.minLength(6)]],
-    });
+  private fb = inject(FormBuilder); // Inject the FormBuilder to handle form validation in reactive forms
+  private loadingController = inject(LoadingController); // Inject the LoadingController to handle loading state by displaying a spinner
+  private alertController = inject(AlertController); // Inject the AlertController to handle errors and display alert messages
+  private authService = inject(AuthService); // Inject the AuthService to handle login and registration
+  private router = inject(Router); // Inject the Router to redirect after successful login
+
+  credentials = this.fb.nonNullable.group({
+    email: ['daniel.cregg@atu.ie', [Validators.required, Validators.email]],
+    password: ['', [Validators.required, Validators.minLength(6)]],
+  });
+
+  constructor() { }
+
+  // Easy access for form fields. This is used in the template to display validation errors.
+  get email() {
+    return this.credentials.controls.email;
   }
 
+  // Easy access for form fields. This is used in the template to display validation errors.
+  get password() {
+    return this.credentials.controls.password;
+  }
+
+  // Register a new user with the AuthService. If successful, redirect to the home page.
+  async register() {
+    // Create a loading overlay. This will be displayed while the request is running.
+    const loading = await this.loadingController.create();
+    await loading.present(); // <-- Show loading spinner
+    // Call the register method from the AuthService. This returns a user object if successful, or null if unsuccessful.
+    const user = await this.authService.register(
+      this.credentials.getRawValue() // <-- Pass the raw value of the form fields to the register method
+    );
+    // Log the user object to the console. This will be `null` if the user was not created.
+    console.log(
+      '🚀 ~ file: login.page.ts:50 ~ LoginPage ~ register ~ user',
+      user
+    );
+    // Dismiss the loading spinner
+    await loading.dismiss();
+
+    // If the user is successfully created, redirect to the home page. Otherwise, display an error.
+    if (user) {
+      this.router.navigateByUrl('/home', { replaceUrl: true });
+    } else {
+      this.showAlert('Registration failed', 'Please try again!');
+    }
+  }
+
+  // The login function is called when the login form is submitted (i.e. the login button is clicked)
+  // Login an existing user with the AuthService. If successful, redirect to the home page.
   async login() {
-    const { email, password } = this.credentials.value;
-    try {
-      await this.authService.login({ email, password });
-      // Navigate to the home page or show a success message
-    } catch (error) {
-      const alert = await this.alertController.create({
-        header: 'Login Failed',
-        message: (error as Error).message, // Cast error to Error type
-        buttons: ['OK'],
-      });
-      await alert.present();
+    // Create a loading overlay. This will be displayed while the request is running.
+    const loading = await this.loadingController.create();
+    await loading.present();
+    // Call the login method from the AuthService. This returns a user object if successful, or null if unsuccessful.
+    const user = await this.authService.login(this.credentials.getRawValue());
+    // Log the user object to the console. This will be `null` if the user was not logged in.
+    console.log('🚀 ~ file: login.page.ts:73 ~ LoginPage ~ login ~ user', user);
+    // Dismiss the loading spinner
+    await loading.dismiss();
+    // If the user is successfully logged in, redirect to the home page. Otherwise, display an error via alert.
+    if (user) {
+      this.router.navigateByUrl('/home', { replaceUrl: true });
+    } else {
+      this.showAlert('Login failed', 'Please try again!');
     }
   }
 
-  async resetPassword() {
-    const { email } = this.credentials.value;
-    try {
-      await this.authService.resetPassword(email);
-      const alert = await this.alertController.create({
-        header: 'Password Reset',
-        message: 'Check your email for a password reset link.',
-        buttons: ['OK'],
-      });
-      await alert.present();
-    } catch (error) {
-      const alert = await this.alertController.create({
-        header: 'Password Reset Failed',
-        message: (error as Error).message, // Cast error to Error type
-        buttons: ['OK'],
-      });
-      await alert.present();
-    }
-  }
+  // Add sendReset function to the LoginPage class. This will call the resetPw method from the AuthService.
+  // This method will send a password reset email to the email address passed as parameter.
 
-  async createAccount() {
-    const { email, password } = this.credentials.value;
-    try {
-      await this.authService.register({ email, password });
-      // Navigate to the home page or show a success message
-    } catch (error) {
-      const alert = await this.alertController.create({
-        header: 'Account Creation Failed',
-        message: (error as Error).message, // Cast error to Error type
-        buttons: ['OK'],
-      });
-      await alert.present();
-    }
+
+  // Show an alert message with the given header and message.
+  async showAlert(header: string, message: string) {
+    const alert = await this.alertController.create({
+      header,
+      message,
+      buttons: ['OK'],
+    });
+    await alert.present();
   }
 }
